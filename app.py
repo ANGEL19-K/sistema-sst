@@ -155,9 +155,11 @@ def ruta_simecar():
 
         except Exception as e:
             return f"Hubo un error al procesar el reporte: {str(e)}", 500
-
-    respuesta = supabase.table('trabajadores').select('nombre_completo').eq('empresa', 'SIMECAR').execute()
+respuesta = supabase.table('trabajadores').select('nombre_completo').eq('empresa', 'SIMECAR').execute()
     return render_template('formulario.html', empresa='SIMECAR', trabajadores=respuesta.data)
+
+# --- CORRECCIÓN AQUÍ ---
+@app.route('/admin/dashboard')
 def dashboard():
     try:
         # Consultar todos los reportes desde Supabase
