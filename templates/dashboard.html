@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard SST</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f9; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background: #333; color: white; }
+        .btn-link { color: blue; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>Reportes Recibidos</h1>
+    <table>
+        <tr>
+            <th>Empresa</th>
+            <th>Tipo</th>
+            <th>Fecha</th>
+            <th>Descripción</th>
+            <th>Evidencia</th>
+        </tr>
+        {% for reporte in reportes %}
+        <tr>
+            <td>{{ reporte.empresa }}</td>
+            <td>{{ reporte.tipo_reporte }}</td>
+            <td>{{ reporte.fecha_ocurrencia }}</td>
+            <td>{{ reporte.descripcion }}</td>
+            <td>
+                {% if reporte.evidencia_url %}
+                    <a href="{{ reporte.evidencia_url }}" target="_blank" class="btn-link">Ver Foto</a>
+                {% else %}
+                    Sin foto
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
