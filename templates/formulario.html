@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte SST - {{ empresa }}</title>
+    <style>
+        :root {
+            /* Usamos la variable que mandaremos desde Python para cambiar el color según la empresa */
+            --color-primario: {% if empresa == 'TERPESA' %} #0056b3 {% else %} #28a745 {% endif %};
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .contenedor {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .cabecera {
+            text-align: center;
+            border-bottom: 2px solid var(--color-primario);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+        }
+        .cabecera h2 {
+            color: var(--color-primario);
+            margin: 0;
+        }
+        .grupo-formulario {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input[type="text"], input[type="date"], input[type="time"], select, textarea, input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 16px; /* Evita que el celular haga zoom al escribir */
+        }
+        .btn-enviar {
+            background-color: var(--color-primario);
+            color: white;
+            border: none;
+            padding: 15px;
+            width: 100%;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .btn-enviar:hover {
+            opacity: 0.9;
+        }
+        .campo-oculto {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="cabecera">
+        <h2>Reporte de SST - {{ empresa }}</h2>
+        <p>Registro de incidentes y condiciones de seguridad</p>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data">
+        
+        <div class="grupo-formulario">
+            <label for="tipo_reporte">Tipo de Reporte:</label>
+            <select id="tipo_reporte" name="tipo_reporte" required onchange="cambiarFormulario()">
+                <option value="">-- Seleccione --</option>
+                <option value="ACTO">Acto Inseguro</option>
+                <option value="CONDICION">Condición Insegura</option>
+            </select>
+        </div>
+
+<div class="grupo-formulario">
+            <label for="fecha">Fecha del Evento:</label>
+            <input type="date" id="fecha" name="fecha" required>
+        </div>
+
+        <div class="grupo-formulario">
+            <label for="hora">Hora del Evento:</label>
+            <input type="time" id="hora" name="hora" required>
+        </div>
+
+        <div class="grupo-formulario">
+            <label for="reportante">Trabajador que reporta:</label>
+            <input type="text" list="lista_trabajadores" id="reportante" name="reportante" placeholder="Escribe para buscar..." required>
+        </div>
+
+        <div class="grupo-formulario">
+            <label for="team">Número de TEAM:</label>
+            <input type="text" id="team" name="team" placeholder="Ej. TEAM 01" required>
+        </div>
+
+        <div id="campos_acto" class="campo-oculto">
+            <div class="grupo-formulario">
+                <label for="reportado">Trabajador al que reportan (Cometió el acto):</label>
+                <input type="text" list="lista_trabajadores" id="reportado" name="reportado" placeholder="Escribe para buscar...">
+            </div>
+        </div>
+
+        <div id="campos_condicion" class="campo-oculto">
+            <div class="grupo-formulario">
+                <label for="sitio">Sitio o Zonal:</label>
+                <input type="text" id="sitio" name="sitio" placeholder="Ej. Almacén Principal, Zona 2...">
+            </div>
+        </div>
+
+        <div class="grupo-formulario">
+            <label for="descripcion">Descripción detallada:</label>
+            <textarea id="descripcion" name="descripcion" rows="4" placeholder="Describe lo que viste..." required></textarea>
+        </div>
+
+      <div class="grupo-formulario">
+            <label for="evidencia">Evidencia Fotográfica:</label>
+            <input type="file" id="evidencia" name="evidencia" accept="image/*" multiple required>
+            <small style="color: #666;">Para condiciones inseguras puedes subir más de 1 foto.</small>
+        </div>
+
+        <datalist id="lista_trabajadores">
+            {% for t in trabajadores %}
+                <option value="{{ t.nombre_completo }}"></option>
+            {% endfor %}
+        </datalist>
+
+        <button type="submit" class="btn-enviar">Enviar Reporte</button>
+
+    </form> </div> <script>
+
+function cambiarFormulario() {
+        var tipo = document.getElementById("tipo_reporte").value;
+        var camposActo = document.getElementById("campos_acto");
+        var camposCondicion = document.getElementById("campos_condicion");
+        
+        // Reiniciar vistas
+        camposActo.style.display = "none";
+        camposCondicion.style.display = "none";
+
+        if (tipo === "ACTO") {
+            camposActo.style.display = "block";
+            // Para acto, solo sugerimos 1 foto quitando el atributo multiple (opcional)
+            document.getElementById("evidencia").removeAttribute("multiple");
+        } else if (tipo === "CONDICION") {
+            camposCondicion.style.display = "block";
+            // Para condición, permitimos múltiples fotos
+            document.getElementById("evidencia").setAttribute("multiple", "true");
+        }
+    }
+</script>
+
+</body>
+</html>
