@@ -158,6 +158,14 @@ def ruta_simecar():
 
     respuesta = supabase.table('trabajadores').select('nombre_completo').eq('empresa', 'SIMECAR').execute()
     return render_template('formulario.html', empresa='SIMECAR', trabajadores=respuesta.data)
+def dashboard():
+    try:
+        # Consultar todos los reportes desde Supabase
+        respuesta = supabase.table('reportes').select('*').order('id', desc=True).execute()
+        return render_template('dashboard.html', reportes=respuesta.data)
+    except Exception as e:
+        return f"Error al cargar dashboard: {str(e)}"
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+    
