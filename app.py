@@ -3,10 +3,7 @@ import io
 import werkzeug
 import requests
 import pandas as pd
-import smtplib
 import threading
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from flask import Flask, render_template, request, redirect, url_for, send_file
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -22,8 +19,8 @@ supabase: Client = create_client(url, key)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-EMAIL_REMITENTE = os.environ.get("EMAIL_REMITENTE")
-EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+# Nuevas variables para la API de Google
+GOOGLE_SCRIPT_URL = os.environ.get("GOOGLE_SCRIPT_URL")
 EMAIL_DESTINO = os.environ.get("EMAIL_DESTINO")
 
 BUCKET_FOTOS = "evidencias"
@@ -56,55 +53,46 @@ def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team
         print(f"[-] TELEGRAM ERROR: {e}")
 
 def enviar_correo_background(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
-    print("[*] CORREO: Hilo de fondo iniciado.")
-    print(f"[*] CORREO RASTREO -> REMITENTE: {EMAIL_REMITENTE}")
-    print(f"[*] CORREO RASTREO -> DESTINO: {EMAIL_DESTINO}")
-    print(f"[*] CORREO RASTREO -> ¿PASSWORD PRESENTE?: {bool(EMAIL_PASSWORD)}")
-
-    if not EMAIL_REMITENTE or not EMAIL_PASSWORD or not EMAIL_DESTINO:
-        print("[-] CORREO ABORTADO: Una o más variables de entorno (REMITENTE, PASSWORD, DESTINO) están vacías o mal nombradas en Render.")
+    print("[*] CORREO: Iniciando envío por túnel HTTPS (Google Apps Script).")
+    
+    if not GOOGLE_SCRIPT_URL or not EMAIL_DESTINO:
+        print("[-] CORREO ABORTADO: Faltan variables GOOGLE_SCRIPT_URL o EMAIL_DESTINO en Render.")
         return
 
     asunto = f"🚨 NUEVO REPORTE SST: {empresa} - {tipo_reporte}"
-    cuerpo = f"""
-    Se ha registrado un nuevo reporte en el Sistema de Inteligencia SST.
-    
-    🏢 EMPRESA: {empresa}
-    👥 TEAM: {team if team else 'N/A'}
-    ⚠️ TIPO DE REPORTE: {tipo_reporte}
-    🕵️ TRABAJADOR QUE REPORTA: {nombre}
-    👤 TRABAJADOR REPORTADO: {nombre_reportado if nombre_reportado else 'N/A'}
-    
-    📝 DESCRIPCIÓN DEL EVENTO:
-    {descripcion}
-    
-    📷 ENLACE A LA EVIDENCIA (FOTO):
-    {foto_url if foto_url else 'El trabajador no adjuntó fotografía.'}
-    
-    ---
-    Este es un mensaje automático del Sistema SST.
-    """
+    cuerpo = f"""Se ha registrado un nuevo reporte en el Sistema de Inteligencia SST.
 
-    msg = MIMEMultipart()
-    msg['From'] = EMAIL_REMITENTE
-    msg['To'] = EMAIL_DESTINO
-    msg['Subject'] = asunto
-    msg.attach(MIMEText(cuerpo, 'plain'))
+🏢 EMPRESA: {empresa}
+👥 TEAM: {team if team else 'N/A'}
+⚠️ TIPO DE REPORTE: {tipo_reporte}
+🕵️ TRABAJADOR QUE REPORTA: {nombre}
+👤 TRABAJADOR REPORTADO: {nombre_reportado if nombre_reportado else 'N/A'}
+
+📝 DESCRIPCIÓN DEL EVENTO:
+{descripcion}
+
+📷 ENLACE A LA EVIDENCIA (FOTO):
+{foto_url if foto_url else 'El trabajador no adjuntó fotografía.'}
+
+---
+Este es un mensaje automático del Sistema SST."""
+
+    # Empaquetamos los datos para enviarlos por la red normal
+    payload = {
+        "destino": EMAIL_DESTINO,
+        "asunto": asunto,
+        "cuerpo": cuerpo
+    }
 
     try:
-        print("[*] CORREO: Conectando al servidor SMTP de Gmail en puerto 465...")
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10)
-        print("[*] CORREO: Iniciando sesión (Login)...")
-        server.login(EMAIL_REMITENTE, EMAIL_PASSWORD)
-        print("[*] CORREO: Enviando mensaje...")
-        server.send_message(msg)
-        server.quit()
-        print("[+] CORREO: ¡Enviado con éxito de fondo!")
+        print("[*] CORREO: Enviando señal a Google...")
+        respuesta = requests.post(GOOGLE_SCRIPT_URL, json=payload, timeout=10)
+        print(f"[+] CORREO: ¡Respuesta de Google exitosa!: {respuesta.text}")
     except Exception as e:
-        print(f"[-] CORREO ERROR CRÍTICO AL ENVIAR: {e}")
+        print(f"[-] CORREO ERROR CRÍTICO AL CONECTAR CON GOOGLE: {e}")
 
 def enviar_alerta_correo(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
-    print("[*] CORREO: Preparando el disparador en segundo plano...")
+    print("[*] CORREO: Disparando hilo en segundo plano...")
     hilo = threading.Thread(
         target=enviar_correo_background, 
         args=(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url)
@@ -192,12 +180,12 @@ def procesar_reporte(empresa, req):
         }
         
         supabase.table('reportes').insert(nuevo_reporte).execute()
-        print("[+] BASE DE DATOS: Reporte insertado con éxito.")
+        print("[+] BASE DE DATOS: Reporte guardado.")
         
         tipo_alerta = "ACTO INSEGURO" if tipo_form == 'ACTO' else "CONDICION INSEGURA"
         nombre_alerta = "Anónimo 🕵️" if es_anonimo else nombre_reportante
         
-        # Disparar alertas
+        # Doble disparo de notificaciones
         enviar_alerta_telegram(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
         enviar_alerta_correo(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
 
