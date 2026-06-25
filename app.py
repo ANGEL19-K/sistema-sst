@@ -1,7 +1,7 @@
 import os
 import werkzeug
 import requests
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -17,28 +17,19 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 BUCKET_FOTOS = "evidencias"
 
-# --- ACTUALIZACIÓN AQUÍ: Añadimos nombre_reportado y team a la función ---
 def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
-    """Función para enviar mensaje push al celular (Con todos los datos)"""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         return 
         
     mensaje = f"🚨 NUEVO REPORTE SST 🚨\n\n"
     mensaje += f"🏢 Empresa: {empresa}\n"
-    
-    # Si viene el dato del TEAM (SIMECAR), lo agregamos al mensaje
     if team:
         mensaje += f"👥 Team: {team}\n"
-        
     mensaje += f"⚠️ Tipo: {tipo_reporte}\n"
     mensaje += f"🕵️ Reporta: {nombre}\n"
-    
-    # Si viene el dato de a quién reportan (Acto Inseguro), lo agregamos
     if nombre_reportado:
         mensaje += f"👤 Involucrado: {nombre_reportado}\n"
-        
     mensaje += f"📝 Detalle: {descripcion}\n"
-    
     if foto_url:
         mensaje += f"\n📷 Evidencia: {foto_url}"
         
@@ -47,7 +38,6 @@ def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team
         "chat_id": TELEGRAM_CHAT_ID,
         "text": mensaje
     }
-    
     try:
         requests.post(url_api, json=payload)
     except Exception as e:
@@ -129,13 +119,10 @@ def procesar_reporte(empresa, req):
             "team": team
         }
         
-        # 1. Guarda en Supabase
         supabase.table('reportes').insert(nuevo_reporte).execute()
         
-        # 2. DISPARA LA ALERTA A TELEGRAM (Ahora con los nuevos datos)
         tipo_alerta = "ACTO INSEGURO" if tipo_form == 'ACTO' else "CONDICION INSEGURA"
         nombre_alerta = "Anónimo 🕵️" if es_anonimo else nombre_reportante
-        
         enviar_alerta_telegram(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
 
         return "<h1>¡Reporte enviado con éxito!</h1>"
@@ -158,6 +145,17 @@ def dashboard():
         return render_template('dashboard.html', reportes=reportes)
     except Exception as e:
         return f"Error al cargar dashboard: {str(e)}"
+
+# --- NUEVA FUNCIÓN: ELIMINAR REPORTE ---
+@app.route('/admin/reporte/eliminar/<int:id_reporte>')
+def eliminar_reporte(id_reporte):
+    try:
+        # Borra el reporte de la base de datos usando su ID
+        supabase.table('reportes').delete().eq('id', id_reporte).execute()
+        # Recarga el dashboard automáticamente
+        return redirect(url_for('dashboard'))
+    except Exception as e:
+        return f"Error al eliminar el reporte: {str(e)}"
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
