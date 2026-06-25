@@ -4,12 +4,14 @@ import werkzeug
 import requests
 import pandas as pd
 import smtplib
+import threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask import Flask, render_template, request, redirect, url_for, send_file
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
+# 1. Cargar Credenciales
 load_dotenv()
 app = Flask(__name__)
 
@@ -20,12 +22,13 @@ supabase: Client = create_client(url, key)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-# Nuevas variables para el correo
 EMAIL_REMITENTE = os.environ.get("EMAIL_REMITENTE")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
-EMAIL_DESTINO = os.environ.get("EMAIL_DESTINO") # El correo de tu amiga terca jaja
+EMAIL_DESTINO = os.environ.get("EMAIL_DESTINO")
 
 BUCKET_FOTOS = "evidencias"
+
+# --- MÓDULO DE ALERTAS (TELEGRAM Y CORREO) ---
 
 def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -50,14 +53,11 @@ def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team
     except Exception as e:
         print(f"[-] Error conectando con Telegram: {e}")
 
-# --- NUEVA FUNCIÓN: ENVIAR CORREO ---
-def enviar_alerta_correo(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
+def enviar_correo_background(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
     if not EMAIL_REMITENTE or not EMAIL_PASSWORD or not EMAIL_DESTINO:
         return
 
     asunto = f"🚨 NUEVO REPORTE SST: {empresa} - {tipo_reporte}"
-    
-    # Armamos un cuerpo de correo limpio
     cuerpo = f"""
     Se ha registrado un nuevo reporte en el Sistema de Inteligencia SST.
     
@@ -84,14 +84,24 @@ def enviar_alerta_correo(empresa, tipo_reporte, nombre, nombre_reportado, team, 
     msg.attach(MIMEText(cuerpo, 'plain'))
 
     try:
-        # Nos conectamos al servidor de Gmail
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
+        # Usamos SMTP_SSL en puerto 465 para evitar bloqueos del servidor
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10)
         server.login(EMAIL_REMITENTE, EMAIL_PASSWORD)
         server.send_message(msg)
         server.quit()
+        print("[+] Correo enviado con éxito de fondo.")
     except Exception as e:
         print(f"[-] Error enviando el correo: {e}")
+
+def enviar_alerta_correo(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
+    # Ejecuta el envío de correo en un hilo separado para no congelar la pantalla web
+    hilo = threading.Thread(
+        target=enviar_correo_background, 
+        args=(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url)
+    )
+    hilo.start()
+
+# --- MÓDULO DE FOTOS ---
 
 def subir_foto_a_supabase(archivo_foto, empresa, tipo_reporte):
     try:
@@ -109,6 +119,8 @@ def subir_foto_a_supabase(archivo_foto, empresa, tipo_reporte):
     except Exception as e:
         print(f"[-] Error: {str(e)}")
         return None
+
+# --- RUTAS PÚBLICAS (FORMULARIOS) ---
 
 @app.route('/')
 def inicio():
@@ -174,13 +186,15 @@ def procesar_reporte(empresa, req):
         tipo_alerta = "ACTO INSEGURO" if tipo_form == 'ACTO' else "CONDICION INSEGURA"
         nombre_alerta = "Anónimo 🕵️" if es_anonimo else nombre_reportante
         
-        # DISPARAMOS AMBAS ALERTAS (La tuya y la de ella)
+        # Se disparan ambas notificaciones
         enviar_alerta_telegram(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
         enviar_alerta_correo(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
 
         return "<h1>¡Reporte enviado con éxito!</h1>"
     except Exception as e:
         return f"Hubo un error: {str(e)}", 500
+
+# --- RUTAS PRIVADAS (DASHBOARD Y GESTIÓN) ---
 
 @app.route('/admin/dashboard')
 def dashboard():
