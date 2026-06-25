@@ -146,19 +146,9 @@ def dashboard():
     except Exception as e:
         return f"Error al cargar dashboard: {str(e)}"
 
-@app.route('/admin/reporte/eliminar/<int:id_reporte>')
-def eliminar_reporte(id_reporte):
-    try:
-        supabase.table('reportes').delete().eq('id', id_reporte).execute()
-        return redirect(url_for('dashboard'))
-    except Exception as e:
-        return f"Error al eliminar el reporte: {str(e)}"
-
-# --- NUEVA FUNCIÓN: EDITAR REPORTE ---
 @app.route('/admin/reporte/editar/<int:id_reporte>', methods=['GET', 'POST'])
 def editar_reporte(id_reporte):
     if request.method == 'POST':
-        # 1. Atrapamos los nuevos datos del formulario
         fecha = request.form.get('fecha')
         hora = request.form.get('hora')
         team = request.form.get('team')
@@ -174,23 +164,56 @@ def editar_reporte(id_reporte):
         }
         
         try:
-            # 2. Actualizamos la base de datos
             supabase.table('reportes').update(datos_actualizados).eq('id', id_reporte).execute()
             return redirect(url_for('dashboard'))
         except Exception as e:
             return f"Error al guardar los cambios: {str(e)}"
-            
     else:
-        # Método GET: Buscamos los datos actuales para mostrarlos en el formulario
         try:
             respuesta = supabase.table('reportes').select('*').eq('id', id_reporte).execute()
             if not respuesta.data:
                 return "Reporte no encontrado."
-            
-            reporte_actual = respuesta.data[0]
-            return render_template('editar.html', reporte=reporte_actual)
+            return render_template('editar.html', reporte=respuesta.data[0])
         except Exception as e:
             return f"Error al cargar el reporte: {str(e)}"
+
+@app.route('/admin/reporte/eliminar/<int:id_reporte>')
+def eliminar_reporte(id_reporte):
+    try:
+        supabase.table('reportes').delete().eq('id', id_reporte).execute()
+        return redirect(url_for('dashboard'))
+    except Exception as e:
+        return f"Error al eliminar el reporte: {str(e)}"
+
+# --- NUEVAS FUNCIONES: GESTIÓN DE TRABAJADORES ---
+@app.route('/admin/trabajadores', methods=['GET', 'POST'])
+def gestionar_trabajadores():
+    if request.method == 'POST':
+        nombre = request.form.get('nombre')
+        empresa = request.form.get('empresa')
+        try:
+            # Convierte el nombre a mayúsculas para mantener orden en la BD
+            supabase.table('trabajadores').insert({"nombre_completo": nombre.upper(), "empresa": empresa}).execute()
+            return redirect(url_for('gestionar_trabajadores'))
+        except Exception as e:
+            return f"Error al agregar trabajador: {str(e)}"
+    
+    try:
+        # Trae la lista ordenada por empresa y luego alfabéticamente
+        respuesta = supabase.table('trabajadores').select('*').order('empresa').order('nombre_completo').execute()
+        return render_template('trabajadores.html', trabajadores=respuesta.data)
+    except Exception as e:
+        return f"Error al cargar la lista de trabajadores: {str(e)}"
+
+@app.route('/admin/trabajadores/eliminar/<int:id_trabajador>')
+def eliminar_trabajador(id_trabajador):
+    try:
+        supabase.table('trabajadores').delete().eq('id', id_trabajador).execute()
+        return redirect(url_for('gestionar_trabajadores'))
+    except Exception as e:
+        # Nota técnica: Si el trabajador tiene reportes vinculados, Supabase podría bloquear su eliminación 
+        # por integridad de datos. Si sale error, avísame y activamos el borrado en cascada.
+        return f"Error al eliminar trabajador. Asegúrate de que no tenga reportes asociados: {str(e)}"
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
