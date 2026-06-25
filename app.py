@@ -146,16 +146,51 @@ def dashboard():
     except Exception as e:
         return f"Error al cargar dashboard: {str(e)}"
 
-# --- NUEVA FUNCIÓN: ELIMINAR REPORTE ---
 @app.route('/admin/reporte/eliminar/<int:id_reporte>')
 def eliminar_reporte(id_reporte):
     try:
-        # Borra el reporte de la base de datos usando su ID
         supabase.table('reportes').delete().eq('id', id_reporte).execute()
-        # Recarga el dashboard automáticamente
         return redirect(url_for('dashboard'))
     except Exception as e:
         return f"Error al eliminar el reporte: {str(e)}"
+
+# --- NUEVA FUNCIÓN: EDITAR REPORTE ---
+@app.route('/admin/reporte/editar/<int:id_reporte>', methods=['GET', 'POST'])
+def editar_reporte(id_reporte):
+    if request.method == 'POST':
+        # 1. Atrapamos los nuevos datos del formulario
+        fecha = request.form.get('fecha')
+        hora = request.form.get('hora')
+        team = request.form.get('team')
+        sitio = request.form.get('sitio')
+        descripcion = request.form.get('descripcion')
+        
+        datos_actualizados = {
+            "fecha_ocurrencia": fecha,
+            "hora_ocurrencia": hora,
+            "team": team if team else None,
+            "sitio_zonal": sitio if sitio else None,
+            "descripcion": descripcion
+        }
+        
+        try:
+            # 2. Actualizamos la base de datos
+            supabase.table('reportes').update(datos_actualizados).eq('id', id_reporte).execute()
+            return redirect(url_for('dashboard'))
+        except Exception as e:
+            return f"Error al guardar los cambios: {str(e)}"
+            
+    else:
+        # Método GET: Buscamos los datos actuales para mostrarlos en el formulario
+        try:
+            respuesta = supabase.table('reportes').select('*').eq('id', id_reporte).execute()
+            if not respuesta.data:
+                return "Reporte no encontrado."
+            
+            reporte_actual = respuesta.data[0]
+            return render_template('editar.html', reporte=reporte_actual)
+        except Exception as e:
+            return f"Error al cargar el reporte: {str(e)}"
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
