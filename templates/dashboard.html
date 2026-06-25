@@ -18,7 +18,9 @@
         .badge-condicion { background-color: #c6f6d5; color: #22543d; }
         .btn-link { display: inline-block; padding: 8px 12px; background-color: #3182ce; color: white; text-decoration: none; border-radius: 6px; font-size: 0.85rem; font-weight: bold; transition: background 0.3s; }
         .btn-link:hover { background-color: #2b6cb0; }
-        .btn-danger { display: inline-block; padding: 8px 12px; background-color: #e53e3e; color: white; text-decoration: none; border-radius: 6px; font-size: 0.85rem; font-weight: bold; transition: background 0.3s; margin-top: 5px;}
+        .btn-edit { display: inline-block; padding: 8px 12px; background-color: #d69e2e; color: white; text-decoration: none; border-radius: 6px; font-size: 0.85rem; font-weight: bold; transition: background 0.3s; margin-bottom: 5px; width: 65px; text-align: center;}
+        .btn-edit:hover { background-color: #b7791f; }
+        .btn-danger { display: inline-block; padding: 8px 12px; background-color: #e53e3e; color: white; text-decoration: none; border-radius: 6px; font-size: 0.85rem; font-weight: bold; transition: background 0.3s; width: 65px; text-align: center;}
         .btn-danger:hover { background-color: #c53030; }
         .anonimo { color: #e53e3e; font-weight: bold; font-style: italic; }
         .info-secundaria { color: #718096; font-size: 0.85rem; display: block; margin-top: 4px; }
@@ -36,7 +38,8 @@
                     <th>Zona / Sitio</th>
                     <th>Descripción</th>
                     <th>Evidencia</th>
-                    <th>Acciones</th> </tr>
+                    <th>Acciones</th>
+                </tr>
                 {% for reporte in reportes %}
                 <tr>
                     <td>
@@ -67,10 +70,11 @@
                             <span class="info-secundaria">Sin foto</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td style="display: flex; flex-direction: column;">
+                        <a href="/admin/reporte/editar/{{ reporte.id }}" class="btn-edit">✏️ Editar</a>
                         <a href="/admin/reporte/eliminar/{{ reporte.id }}" 
                            class="btn-danger" 
-                           onclick="return confirm('⚠️ ¿Estás totalmente seguro de que deseas eliminar este reporte? Esta acción no se puede deshacer.');">
+                           onclick="return confirm('⚠️ ¿Estás totalmente seguro de que deseas eliminar este reporte?');">
                            🗑️ Eliminar
                         </a>
                     </td>
