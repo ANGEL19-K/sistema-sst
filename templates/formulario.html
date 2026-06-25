@@ -6,7 +6,6 @@
     <title>Reporte SST - {{ empresa }}</title>
     <style>
         :root {
-            /* Usamos la variable que mandaremos desde Python para cambiar el color según la empresa */
             --color-primario: {% if empresa == 'TERPESA' %} #0056b3 {% else %} #28a745 {% endif %};
         }
         body {
@@ -48,7 +47,7 @@
             border: 1px solid #ccc;
             border-radius: 5px;
             box-sizing: border-box;
-            font-size: 16px; /* Evita que el celular haga zoom al escribir */
+            font-size: 16px;
         }
         .btn-enviar {
             background-color: var(--color-primario);
@@ -89,7 +88,7 @@
             </select>
         </div>
 
-<div class="grupo-formulario">
+        <div class="grupo-formulario">
             <label for="fecha">Fecha del Evento:</label>
             <input type="date" id="fecha" name="fecha" required>
         </div>
@@ -104,10 +103,20 @@
             <input type="text" list="lista_trabajadores" id="reportante" name="reportante" placeholder="Escribe para buscar..." required>
         </div>
 
+        <div style="margin-top: 10px; margin-bottom: 20px; background-color: #ffeaea; padding: 10px; border-radius: 5px; border-left: 4px solid #ff4d4d;">
+            <input type="checkbox" id="anonimo" name="anonimo" value="si" onchange="alternarAnonimo(this)">
+            <label for="anonimo" style="font-weight: bold; color: #cc0000; cursor: pointer; display: inline;">
+                Quieres hacer este reporte de forma ANÓNIMA
+            </label>
+            <p style="margin: 5px 0 0 0; font-size: 0.8rem; color: #555;">Si marcas esta casilla, tu identidad estará protegida de forma confidencial.</p>
+        </div>
+
+        {% if empresa == 'SIMECAR' %}
         <div class="grupo-formulario">
             <label for="team">Número de TEAM:</label>
             <input type="text" id="team" name="team" placeholder="Ej. TEAM 01" required>
         </div>
+        {% endif %}
 
         <div id="campos_acto" class="campo-oculto">
             <div class="grupo-formulario">
@@ -128,10 +137,10 @@
             <textarea id="descripcion" name="descripcion" rows="4" placeholder="Describe lo que viste..." required></textarea>
         </div>
 
-      <div class="grupo-formulario">
+        <div class="grupo-formulario">
             <label for="evidencia">Evidencia Fotográfica:</label>
-            <input type="file" id="evidencia" name="evidencia" accept="image/*" multiple required>
-            <small style="color: #666;">Para condiciones inseguras puedes subir más de 1 foto.</small>
+            <input type="file" id="evidencia" name="evidencia" accept="image/*" required>
+            <small style="color: #666;">Adjunta una captura clara como evidencia del suceso.</small>
         </div>
 
         <datalist id="lista_trabajadores">
@@ -142,27 +151,35 @@
 
         <button type="submit" class="btn-enviar">Enviar Reporte</button>
 
-    </form> </div> <script>
+    </form>
+</div>
 
+<script>
 function cambiarFormulario() {
-        var tipo = document.getElementById("tipo_reporte").value;
-        var camposActo = document.getElementById("campos_acto");
-        var camposCondicion = document.getElementById("campos_condicion");
-        
-        // Reiniciar vistas
-        camposActo.style.display = "none";
-        camposCondicion.style.display = "none";
+    var tipo = document.getElementById("tipo_reporte").value;
+    var camposActo = document.getElementById("campos_acto");
+    var camposCondicion = document.getElementById("campos_condicion");
+    
+    camposActo.style.display = "none";
+    camposCondicion.style.display = "none";
 
-        if (tipo === "ACTO") {
-            camposActo.style.display = "block";
-            // Para acto, solo sugerimos 1 foto quitando el atributo multiple (opcional)
-            document.getElementById("evidencia").removeAttribute("multiple");
-        } else if (tipo === "CONDICION") {
-            camposCondicion.style.display = "block";
-            // Para condición, permitimos múltiples fotos
-            document.getElementById("evidencia").setAttribute("multiple", "true");
-        }
+    if (tipo === "ACTO") {
+        camposActo.style.display = "block";
+    } else if (tipo === "CONDICION") {
+        camposCondicion.style.display = "block";
     }
+}
+
+function alternarAnonimo(checkbox) {
+    var rep = document.getElementById('reportante');
+    rep.disabled = checkbox.checked;
+    if (checkbox.checked) {
+        rep.removeAttribute('required');
+        rep.value = '';
+    } else {
+        rep.setAttribute('required', 'required');
+    }
+}
 </script>
 
 </body>
