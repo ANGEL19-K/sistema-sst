@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Inteligencia SST</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1200px; margin: auto; }
+        h1 { color: #1a202c; text-align: center; margin-bottom: 30px; font-size: 2.2rem; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { background-color: #2d3748; color: white; padding: 15px; font-weight: 600; text-transform: uppercase; font-size: 0.85rem; }
+        td { padding: 15px; border-bottom: 1px solid #e2e8f0; font-size: 0.95rem; vertical-align: top; }
+        tr:hover { background-color: #f7fafc; }
+        .badge { padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
+        .badge-acto { background-color: #fefcbf; color: #b7791f; }
+        .badge-condicion { background-color: #c6f6d5; color: #22543d; }
+        .btn-link { display: inline-block; padding: 8px 12px; background-color: #3182ce; color: white; text-decoration: none; border-radius: 6px; font-size: 0.85rem; font-weight: bold; transition: background 0.3s; }
+        .btn-link:hover { background-color: #2b6cb0; }
+        .anonimo { color: #e53e3e; font-weight: bold; font-style: italic; }
+        .info-secundaria { color: #718096; font-size: 0.85rem; display: block; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ Panel de Inteligencia SST</h1>
+        <div style="text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+            <a href="/admin/trabajadores" class="btn-link" style="background-color: #2b6cb0;">👥 Gestionar Trabajadores</a>
+            <a href="/admin/exportar" class="btn-link" style="background-color: #2f855a;">📥 Descargar en Excel</a>
+        </div>
+        <div class="card">
+            <table>
+                <tr>
+                    <th>Empresa & Tipo</th>
+                    <th>Fecha y Hora</th>
+                    <th>Involucrados</th>
+                    <th>Zona / Sitio</th>
+                    <th>Descripción</th>
+                    <th>Evidencia</th>
+                </tr>
+                {% for reporte in reportes %}
+                <tr>
+                    <td>
+                        <strong>{{ reporte.empresa }}</strong><br>
+                        <span class="badge {% if reporte.tipo_reporte == 'ACTO_INSEGURO' %}badge-acto{% else %}badge-condicion{% endif %}" style="margin-top: 8px; display: inline-block;">
+                            {{ reporte.tipo_reporte }}
+                        </span>
+                    </td>
+                    <td>
+                        📅 {{ reporte.fecha_ocurrencia }}<br>
+                        <span class="info-secundaria">🕒 {{ reporte.hora_ocurrencia }}</span>
+                    </td>
+                    <td>
+                        <span class="{% if reporte.nombre_reportante == 'Anónimo' %}anonimo{% endif %}">
+                            🕵️ Reporta: {{ reporte.nombre_reportante }}
+                        </span><br>
+                        <span class="info-secundaria">👤 Reportado: {{ reporte.nombre_reportado }}</span>
+                    </td>
+                    <td>📍 {{ reporte.sitio_zonal or 'N/A' }}</td>
+                    <td style="max-width: 300px;">📝 {{ reporte.descripcion }}</td>
+                    <td>
+                        {% if reporte.evidencia_url %}
+                            <a href="{{ reporte.evidencia_url }}" target="_blank" class="btn-link">📷 Ver Foto</a>
+                        {% else %}
+                            <span class="info-secundaria">Sin foto</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+</body>
+</html>

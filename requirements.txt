@@ -7,3 +7,5 @@ Pillow
 setuptools
 wheel
 requests
+pandas
+openpyxl

@@ -1,7 +1,9 @@
 import os
+import io
 import werkzeug
 import requests
-from flask import Flask, render_template, request, redirect, url_for
+import pandas as pd
+from flask import Flask, render_template, request, redirect, url_for, send_file
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -185,21 +187,18 @@ def eliminar_reporte(id_reporte):
     except Exception as e:
         return f"Error al eliminar el reporte: {str(e)}"
 
-# --- NUEVAS FUNCIONES: GESTIÓN DE TRABAJADORES ---
 @app.route('/admin/trabajadores', methods=['GET', 'POST'])
 def gestionar_trabajadores():
     if request.method == 'POST':
         nombre = request.form.get('nombre')
         empresa = request.form.get('empresa')
         try:
-            # Convierte el nombre a mayúsculas para mantener orden en la BD
             supabase.table('trabajadores').insert({"nombre_completo": nombre.upper(), "empresa": empresa}).execute()
             return redirect(url_for('gestionar_trabajadores'))
         except Exception as e:
             return f"Error al agregar trabajador: {str(e)}"
     
     try:
-        # Trae la lista ordenada por empresa y luego alfabéticamente
         respuesta = supabase.table('trabajadores').select('*').order('empresa').order('nombre_completo').execute()
         return render_template('trabajadores.html', trabajadores=respuesta.data)
     except Exception as e:
@@ -211,9 +210,52 @@ def eliminar_trabajador(id_trabajador):
         supabase.table('trabajadores').delete().eq('id', id_trabajador).execute()
         return redirect(url_for('gestionar_trabajadores'))
     except Exception as e:
-        # Nota técnica: Si el trabajador tiene reportes vinculados, Supabase podría bloquear su eliminación 
-        # por integridad de datos. Si sale error, avísame y activamos el borrado en cascada.
         return f"Error al eliminar trabajador. Asegúrate de que no tenga reportes asociados: {str(e)}"
+
+# --- NUEVA FUNCIÓN: EXPORTAR A EXCEL ---
+@app.route('/admin/exportar')
+def exportar_excel():
+    try:
+        # 1. Traer datos frescos de la BD
+        res_reportes = supabase.table('reportes').select('*').order('id', desc=True).execute()
+        res_trabajadores = supabase.table('trabajadores').select('id, nombre_completo').execute()
+        
+        mapa_trabajadores = {t['id']: t['nombre_completo'] for t in res_trabajadores.data}
+        
+        # 2. Darle formato bonito para el Excel
+        datos_excel = []
+        for r in res_reportes.data:
+            datos_excel.append({
+                "N° Reporte": r.get('id'),
+                "Empresa": r.get('empresa'),
+                "Team": r.get('team', 'N/A'),
+                "Tipo de Reporte": r.get('tipo_reporte'),
+                "Fecha": r.get('fecha_ocurrencia'),
+                "Hora": r.get('hora_ocurrencia'),
+                "Reportante (Testigo)": mapa_trabajadores.get(r.get('id_reportante'), 'Anónimo'),
+                "Involucrado (Reportado)": mapa_trabajadores.get(r.get('id_reportado'), 'N/A'),
+                "Sitio / Zonal": r.get('sitio_zonal', 'N/A'),
+                "Descripción del Evento": r.get('descripcion'),
+                "Enlace de Evidencia": r.get('evidencia_url', 'Sin evidencia')
+            })
+
+        # 3. Construir el archivo en la memoria del servidor
+        df = pd.DataFrame(datos_excel)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Reportes SST')
+        
+        output.seek(0)
+        
+        # 4. Enviar el archivo directo a tu carpeta de descargas
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="Registro_Inteligencia_SST.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        return f"Error al exportar a Excel: {str(e)}"
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
