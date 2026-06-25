@@ -3,6 +3,9 @@ import io
 import werkzeug
 import requests
 import pandas as pd
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from flask import Flask, render_template, request, redirect, url_for, send_file
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -16,6 +19,11 @@ supabase: Client = create_client(url, key)
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+
+# Nuevas variables para el correo
+EMAIL_REMITENTE = os.environ.get("EMAIL_REMITENTE")
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+EMAIL_DESTINO = os.environ.get("EMAIL_DESTINO") # El correo de tu amiga terca jaja
 
 BUCKET_FOTOS = "evidencias"
 
@@ -36,14 +44,54 @@ def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team
         mensaje += f"\n📷 Evidencia: {foto_url}"
         
     url_api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": mensaje
-    }
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": mensaje}
     try:
         requests.post(url_api, json=payload)
     except Exception as e:
         print(f"[-] Error conectando con Telegram: {e}")
+
+# --- NUEVA FUNCIÓN: ENVIAR CORREO ---
+def enviar_alerta_correo(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
+    if not EMAIL_REMITENTE or not EMAIL_PASSWORD or not EMAIL_DESTINO:
+        return
+
+    asunto = f"🚨 NUEVO REPORTE SST: {empresa} - {tipo_reporte}"
+    
+    # Armamos un cuerpo de correo limpio
+    cuerpo = f"""
+    Se ha registrado un nuevo reporte en el Sistema de Inteligencia SST.
+    
+    🏢 EMPRESA: {empresa}
+    👥 TEAM: {team if team else 'N/A'}
+    ⚠️ TIPO DE REPORTE: {tipo_reporte}
+    🕵️ TRABAJADOR QUE REPORTA: {nombre}
+    👤 TRABAJADOR REPORTADO: {nombre_reportado if nombre_reportado else 'N/A'}
+    
+    📝 DESCRIPCIÓN DEL EVENTO:
+    {descripcion}
+    
+    📷 ENLACE A LA EVIDENCIA (FOTO):
+    {foto_url if foto_url else 'El trabajador no adjuntó fotografía.'}
+    
+    ---
+    Este es un mensaje automático del Sistema SST.
+    """
+
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_REMITENTE
+    msg['To'] = EMAIL_DESTINO
+    msg['Subject'] = asunto
+    msg.attach(MIMEText(cuerpo, 'plain'))
+
+    try:
+        # Nos conectamos al servidor de Gmail
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_REMITENTE, EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+    except Exception as e:
+        print(f"[-] Error enviando el correo: {e}")
 
 def subir_foto_a_supabase(archivo_foto, empresa, tipo_reporte):
     try:
@@ -125,7 +173,10 @@ def procesar_reporte(empresa, req):
         
         tipo_alerta = "ACTO INSEGURO" if tipo_form == 'ACTO' else "CONDICION INSEGURA"
         nombre_alerta = "Anónimo 🕵️" if es_anonimo else nombre_reportante
+        
+        # DISPARAMOS AMBAS ALERTAS (La tuya y la de ella)
         enviar_alerta_telegram(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
+        enviar_alerta_correo(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
 
         return "<h1>¡Reporte enviado con éxito!</h1>"
     except Exception as e:
@@ -210,19 +261,16 @@ def eliminar_trabajador(id_trabajador):
         supabase.table('trabajadores').delete().eq('id', id_trabajador).execute()
         return redirect(url_for('gestionar_trabajadores'))
     except Exception as e:
-        return f"Error al eliminar trabajador. Asegúrate de que no tenga reportes asociados: {str(e)}"
+        return f"Error al eliminar trabajador: {str(e)}"
 
-# --- NUEVA FUNCIÓN: EXPORTAR A EXCEL ---
 @app.route('/admin/exportar')
 def exportar_excel():
     try:
-        # 1. Traer datos frescos de la BD
         res_reportes = supabase.table('reportes').select('*').order('id', desc=True).execute()
         res_trabajadores = supabase.table('trabajadores').select('id, nombre_completo').execute()
         
         mapa_trabajadores = {t['id']: t['nombre_completo'] for t in res_trabajadores.data}
         
-        # 2. Darle formato bonito para el Excel
         datos_excel = []
         for r in res_reportes.data:
             datos_excel.append({
@@ -239,7 +287,6 @@ def exportar_excel():
                 "Enlace de Evidencia": r.get('evidencia_url', 'Sin evidencia')
             })
 
-        # 3. Construir el archivo en la memoria del servidor
         df = pd.DataFrame(datos_excel)
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -247,7 +294,6 @@ def exportar_excel():
         
         output.seek(0)
         
-        # 4. Enviar el archivo directo a tu carpeta de descargas
         return send_file(
             output,
             as_attachment=True,
