@@ -1,6 +1,6 @@
 import os
 import werkzeug
-import requests  # <-- NUEVA LIBRERÍA PARA TELEGRAM
+import requests
 from flask import Flask, render_template, request
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -19,30 +19,33 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 BUCKET_FOTOS = "evidencias"
 
 def enviar_alerta_telegram(empresa, tipo_reporte, nombre, descripcion, foto_url):
-    """Función para enviar mensaje push al celular"""
+    """Función para enviar mensaje push al celular (Versión a prueba de fallos)"""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        return # Si no hay credenciales, no hace nada para no romper el sistema
+        print("[-] ERROR: No se encontraron las variables TELEGRAM_TOKEN o TELEGRAM_CHAT_ID en Render")
+        return 
         
-    mensaje = f"🚨 *NUEVO REPORTE SST* 🚨\n\n"
-    mensaje += f"🏢 *Empresa:* {empresa}\n"
-    mensaje += f"⚠️ *Tipo:* {tipo_reporte}\n"
-    mensaje += f"🕵️ *Reporta:* {nombre}\n"
-    mensaje += f"📝 *Detalle:* {descripcion}\n"
+    # Mensaje en texto plano, sin formatos estrictos que rompan la API
+    mensaje = f"🚨 NUEVO REPORTE SST 🚨\n\n"
+    mensaje += f"🏢 Empresa: {empresa}\n"
+    mensaje += f"⚠️ Tipo: {tipo_reporte}\n"
+    mensaje += f"🕵️ Reporta: {nombre}\n"
+    mensaje += f"📝 Detalle: {descripcion}\n"
     
     if foto_url:
-        mensaje += f"\n📷 [Click aquí para ver la foto de evidencia]({foto_url})"
+        mensaje += f"\n📷 Evidencia: {foto_url}"
         
     url_api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": mensaje,
-        "parse_mode": "Markdown"
+        "text": mensaje
     }
+    
     try:
-        requests.post(url_api, json=payload)
+        # Aquí le decimos a Python que nos "chismee" la respuesta exacta de Telegram
+        respuesta = requests.post(url_api, json=payload)
+        print(f"[*] RESPUESTA DE TELEGRAM: {respuesta.status_code} - {respuesta.text}")
     except Exception as e:
-        print(f"[-] Error enviando Telegram: {e}")
-
+        print(f"[-] Error conectando con Telegram: {e}")
 def subir_foto_a_supabase(archivo_foto, empresa, tipo_reporte):
     try:
         nombre_original = werkzeug.utils.secure_filename(archivo_foto.filename)
