@@ -12,23 +12,31 @@ url = os.environ.get("SUPABASE_URL")
 key = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
-# Credenciales de Telegram (las leerá de Render de forma segura)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 BUCKET_FOTOS = "evidencias"
 
-def enviar_alerta_telegram(empresa, tipo_reporte, nombre, descripcion, foto_url):
-    """Función para enviar mensaje push al celular (Versión a prueba de fallos)"""
+# --- ACTUALIZACIÓN AQUÍ: Añadimos nombre_reportado y team a la función ---
+def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
+    """Función para enviar mensaje push al celular (Con todos los datos)"""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        print("[-] ERROR: No se encontraron las variables TELEGRAM_TOKEN o TELEGRAM_CHAT_ID en Render")
         return 
         
-    # Mensaje en texto plano, sin formatos estrictos que rompan la API
     mensaje = f"🚨 NUEVO REPORTE SST 🚨\n\n"
     mensaje += f"🏢 Empresa: {empresa}\n"
+    
+    # Si viene el dato del TEAM (SIMECAR), lo agregamos al mensaje
+    if team:
+        mensaje += f"👥 Team: {team}\n"
+        
     mensaje += f"⚠️ Tipo: {tipo_reporte}\n"
     mensaje += f"🕵️ Reporta: {nombre}\n"
+    
+    # Si viene el dato de a quién reportan (Acto Inseguro), lo agregamos
+    if nombre_reportado:
+        mensaje += f"👤 Involucrado: {nombre_reportado}\n"
+        
     mensaje += f"📝 Detalle: {descripcion}\n"
     
     if foto_url:
@@ -41,11 +49,10 @@ def enviar_alerta_telegram(empresa, tipo_reporte, nombre, descripcion, foto_url)
     }
     
     try:
-        # Aquí le decimos a Python que nos "chismee" la respuesta exacta de Telegram
-        respuesta = requests.post(url_api, json=payload)
-        print(f"[*] RESPUESTA DE TELEGRAM: {respuesta.status_code} - {respuesta.text}")
+        requests.post(url_api, json=payload)
     except Exception as e:
         print(f"[-] Error conectando con Telegram: {e}")
+
 def subir_foto_a_supabase(archivo_foto, empresa, tipo_reporte):
     try:
         nombre_original = werkzeug.utils.secure_filename(archivo_foto.filename)
@@ -122,13 +129,14 @@ def procesar_reporte(empresa, req):
             "team": team
         }
         
-        # 1. Guarda en Supabase primero
+        # 1. Guarda en Supabase
         supabase.table('reportes').insert(nuevo_reporte).execute()
         
-        # 2. Si todo salió bien, DISPARA LA ALERTA A TELEGRAM
+        # 2. DISPARA LA ALERTA A TELEGRAM (Ahora con los nuevos datos)
         tipo_alerta = "ACTO INSEGURO" if tipo_form == 'ACTO' else "CONDICION INSEGURA"
         nombre_alerta = "Anónimo 🕵️" if es_anonimo else nombre_reportante
-        enviar_alerta_telegram(empresa, tipo_alerta, nombre_alerta, descripcion, url_evidencia)
+        
+        enviar_alerta_telegram(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
 
         return "<h1>¡Reporte enviado con éxito!</h1>"
     except Exception as e:
