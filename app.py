@@ -1,32 +1,55 @@
 import os
 import werkzeug
+import requests  # <-- NUEVA LIBRERÍA PARA TELEGRAM
 from flask import Flask, render_template, request
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-# 1. Cargar credenciales seguras
 load_dotenv()
-
-# 2. Inicializar Flask
 app = Flask(__name__)
 
-# 3. Conectar a Supabase
 url = os.environ.get("SUPABASE_URL")
 key = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
-# Nombre del bucket para las imágenes
+# Credenciales de Telegram (las leerá de Render de forma segura)
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+
 BUCKET_FOTOS = "evidencias"
 
+def enviar_alerta_telegram(empresa, tipo_reporte, nombre, descripcion, foto_url):
+    """Función para enviar mensaje push al celular"""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        return # Si no hay credenciales, no hace nada para no romper el sistema
+        
+    mensaje = f"🚨 *NUEVO REPORTE SST* 🚨\n\n"
+    mensaje += f"🏢 *Empresa:* {empresa}\n"
+    mensaje += f"⚠️ *Tipo:* {tipo_reporte}\n"
+    mensaje += f"🕵️ *Reporta:* {nombre}\n"
+    mensaje += f"📝 *Detalle:* {descripcion}\n"
+    
+    if foto_url:
+        mensaje += f"\n📷 [Click aquí para ver la foto de evidencia]({foto_url})"
+        
+    url_api = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": mensaje,
+        "parse_mode": "Markdown"
+    }
+    try:
+        requests.post(url_api, json=payload)
+    except Exception as e:
+        print(f"[-] Error enviando Telegram: {e}")
+
 def subir_foto_a_supabase(archivo_foto, empresa, tipo_reporte):
-    """Sube la imagen a Supabase Storage y retorna su URL pública"""
     try:
         nombre_original = werkzeug.utils.secure_filename(archivo_foto.filename)
         if not nombre_original:
             return None
         ruta_remota = f"{empresa}/{tipo_reporte}_{nombre_original}"
         datos_archivo = archivo_foto.read()
-        
         supabase.storage.from_(BUCKET_FOTOS).upload(
             path=ruta_remota,
             file=datos_archivo,
@@ -34,10 +57,8 @@ def subir_foto_a_supabase(archivo_foto, empresa, tipo_reporte):
         )
         return supabase.storage.from_(BUCKET_FOTOS).get_public_url(ruta_remota)
     except Exception as e:
-        print(f"[-] Error al subir foto: {str(e)}")
+        print(f"[-] Error: {str(e)}")
         return None
-
-# --- RUTAS DE NAVEGACIÓN ---
 
 @app.route('/')
 def inicio():
@@ -58,7 +79,6 @@ def ruta_simecar():
     return render_template('formulario.html', empresa='SIMECAR', trabajadores=respuesta.data)
 
 def procesar_reporte(empresa, req):
-    """Función unificada para validar y estructurar los reportes de SST"""
     tipo_form = req.form.get('tipo_reporte')
     fecha = req.form.get('fecha')
     hora = req.form.get('hora')
@@ -66,13 +86,12 @@ def procesar_reporte(empresa, req):
     nombre_reportado = req.form.get('reportado')
     sitio = req.form.get('sitio')
     descripcion = req.form.get('descripcion')
-    es_anonimo = req.form.get('anonimo')
-    team = req.form.get('team')  # Captura el campo TEAM si viene de SIMECAR
+    es_anonimo = req.form.get('anonimo') 
+    team = req.form.get('team')
     archivo_foto = req.files.get('evidencia')
 
     try:
         id_reportante = None
-        # Si no es anónimo, buscamos el ID correspondiente al trabajador
         if not es_anonimo:
             busqueda_reportante = supabase.table('trabajadores').select('id').eq('nombre_completo', nombre_reportante).eq('empresa', empresa).execute()
             if not busqueda_reportante.data:
@@ -99,19 +118,25 @@ def procesar_reporte(empresa, req):
             "evidencia_url": url_evidencia,
             "team": team
         }
+        
+        # 1. Guarda en Supabase primero
         supabase.table('reportes').insert(nuevo_reporte).execute()
+        
+        # 2. Si todo salió bien, DISPARA LA ALERTA A TELEGRAM
+        tipo_alerta = "ACTO INSEGURO" if tipo_form == 'ACTO' else "CONDICION INSEGURA"
+        nombre_alerta = "Anónimo 🕵️" if es_anonimo else nombre_reportante
+        enviar_alerta_telegram(empresa, tipo_alerta, nombre_alerta, descripcion, url_evidencia)
+
         return "<h1>¡Reporte enviado con éxito!</h1>"
     except Exception as e:
-        return f"Hubo un error al guardar el reporte: {str(e)}", 500
+        return f"Hubo un error: {str(e)}", 500
 
 @app.route('/admin/dashboard')
 def dashboard():
-    """Genera la vista analítica del Dashboard cruzando IDs con nombres reales"""
     try:
         res_reportes = supabase.table('reportes').select('*').order('id', desc=True).execute()
         res_trabajadores = supabase.table('trabajadores').select('id, nombre_completo').execute()
         
-        # Mapeo de ID -> Nombre Completo para acelerar la renderización
         mapa_trabajadores = {t['id']: t['nombre_completo'] for t in res_trabajadores.data}
         
         reportes = res_reportes.data
@@ -121,7 +146,7 @@ def dashboard():
             
         return render_template('dashboard.html', reportes=reportes)
     except Exception as e:
-        return f"Error al cargar el dashboard administrativo: {str(e)}"
+        return f"Error al cargar dashboard: {str(e)}"
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
