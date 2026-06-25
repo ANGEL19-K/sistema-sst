@@ -32,6 +32,7 @@ BUCKET_FOTOS = "evidencias"
 
 def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[-] TELEGRAM: Saltado por falta de credenciales.")
         return 
         
     mensaje = f"🚨 NUEVO REPORTE SST 🚨\n\n"
@@ -50,11 +51,18 @@ def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": mensaje}
     try:
         requests.post(url_api, json=payload)
+        print("[+] TELEGRAM: Alerta enviada con éxito.")
     except Exception as e:
-        print(f"[-] Error conectando con Telegram: {e}")
+        print(f"[-] TELEGRAM ERROR: {e}")
 
 def enviar_correo_background(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
+    print("[*] CORREO: Hilo de fondo iniciado.")
+    print(f"[*] CORREO RASTREO -> REMITENTE: {EMAIL_REMITENTE}")
+    print(f"[*] CORREO RASTREO -> DESTINO: {EMAIL_DESTINO}")
+    print(f"[*] CORREO RASTREO -> ¿PASSWORD PRESENTE?: {bool(EMAIL_PASSWORD)}")
+
     if not EMAIL_REMITENTE or not EMAIL_PASSWORD or not EMAIL_DESTINO:
+        print("[-] CORREO ABORTADO: Una o más variables de entorno (REMITENTE, PASSWORD, DESTINO) están vacías o mal nombradas en Render.")
         return
 
     asunto = f"🚨 NUEVO REPORTE SST: {empresa} - {tipo_reporte}"
@@ -84,17 +92,19 @@ def enviar_correo_background(empresa, tipo_reporte, nombre, nombre_reportado, te
     msg.attach(MIMEText(cuerpo, 'plain'))
 
     try:
-        # Usamos SMTP_SSL en puerto 465 para evitar bloqueos del servidor
+        print("[*] CORREO: Conectando al servidor SMTP de Gmail en puerto 465...")
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10)
+        print("[*] CORREO: Iniciando sesión (Login)...")
         server.login(EMAIL_REMITENTE, EMAIL_PASSWORD)
+        print("[*] CORREO: Enviando mensaje...")
         server.send_message(msg)
         server.quit()
-        print("[+] Correo enviado con éxito de fondo.")
+        print("[+] CORREO: ¡Enviado con éxito de fondo!")
     except Exception as e:
-        print(f"[-] Error enviando el correo: {e}")
+        print(f"[-] CORREO ERROR CRÍTICO AL ENVIAR: {e}")
 
 def enviar_alerta_correo(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
-    # Ejecuta el envío de correo en un hilo separado para no congelar la pantalla web
+    print("[*] CORREO: Preparando el disparador en segundo plano...")
     hilo = threading.Thread(
         target=enviar_correo_background, 
         args=(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url)
@@ -182,11 +192,12 @@ def procesar_reporte(empresa, req):
         }
         
         supabase.table('reportes').insert(nuevo_reporte).execute()
+        print("[+] BASE DE DATOS: Reporte insertado con éxito.")
         
         tipo_alerta = "ACTO INSEGURO" if tipo_form == 'ACTO' else "CONDICION INSEGURA"
         nombre_alerta = "Anónimo 🕵️" if es_anonimo else nombre_reportante
         
-        # Se disparan ambas notificaciones
+        # Disparar alertas
         enviar_alerta_telegram(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
         enviar_alerta_correo(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
 
