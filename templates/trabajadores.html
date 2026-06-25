@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Personal</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f0f2f5; padding: 20px; color: #333; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #2d3748; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        th { background-color: #2d3748; color: white; }
+        .btn { padding: 8px 15px; background-color: #3182ce; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; }
+        .btn:hover { background-color: #2b6cb0; }
+        .btn-danger { background-color: #e53e3e; }
+        .btn-danger:hover { background-color: #c53030; }
+        .formulario-agregar { background: #f7fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 30px; }
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
+        input[type="text"], select { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box; }
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
+        .terpesa { background-color: #bee3f8; color: #2b6cb0; }
+        .simecar { background-color: #c6f6d5; color: #22543d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👥 Gestión de Personal</h1>
+        <a href="/admin/dashboard" class="btn" style="background-color: #718096;">🔙 Volver al Dashboard</a>
+
+        <div class="formulario-agregar" style="margin-top: 20px;">
+            <h3>➕ Ingresar Nuevo Trabajador</h3>
+            <form method="POST">
+                <div class="form-group">
+                    <label>Nombre Completo (Apellidos y Nombres):</label>
+                    <input type="text" name="nombre" required placeholder="Ej. PEREZ GARCIA, JUAN">
+                </div>
+                <div class="form-group">
+                    <label>Empresa:</label>
+                    <select name="empresa" required>
+                        <option value="TERPESA">TERPESA</option>
+                        <option value="SIMECAR">SIMECAR</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn">Guardar Trabajador</button>
+            </form>
+        </div>
+
+        <h3>📋 Lista de Personal Activo</h3>
+        <table>
+            <tr>
+                <th>Nombre del Trabajador</th>
+                <th>Empresa</th>
+                <th>Acción</th>
+            </tr>
+            {% for t in trabajadores %}
+            <tr>
+                <td>{{ t.nombre_completo }}</td>
+                <td>
+                    <span class="badge {% if t.empresa == 'TERPESA' %}terpesa{% else %}simecar{% endif %}">
+                        {{ t.empresa }}
+                    </span>
+                </td>
+                <td>
+                    <a href="/admin/trabajadores/eliminar/{{ t.id }}" class="btn btn-danger" onclick="return confirm('⚠️ ¿Eliminar definitivamente a {{ t.nombre_completo }} del sistema?');">🗑️ Eliminar</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>
