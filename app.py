@@ -387,7 +387,7 @@ def rendir_evaluacion(id_charla):
         nombres = request.form.get('nombres')
         dni = request.form.get('dni')
         cargo = request.form.get('cargo')
-        delegacion = request.form.get('delegacion')
+        fecha_examen = request.form.get('fecha_examen') # <-- Atrapamos la nueva fecha
         archivo_foto = request.files.get('evidencia')
         
         url_evidencia = subir_foto_a_supabase(archivo_foto, "SIMECAR", f"ASISTENCIA_{id_charla}") if archivo_foto else None
@@ -407,7 +407,7 @@ def rendir_evaluacion(id_charla):
             "nombres": nombres.upper(),
             "dni": dni,
             "cargo": cargo.upper(),
-            "delegacion": delegacion.upper(),
+            "delegacion": fecha_examen, # <-- Truco Ninja: Guardamos la fecha en la columna vieja
             "respuestas_marcadas": json.dumps(respuestas_marcadas),
             "nota_final": nota,
             "evidencia_url": url_evidencia
@@ -462,12 +462,12 @@ def exportar_notas_excel():
             datos_charla = mapa_charlas.get(ev.get('id_charla'), {'tema': 'Desconocida', 'fecha': 'N/A'})
             
             datos_excel.append({
-                "Fecha Programada": datos_charla['fecha'],
+                "Fecha Programada (Charla)": datos_charla['fecha'],
                 "Tema de Capacitación": datos_charla['tema'],
                 "Trabajador": ev.get('nombres'),
                 "DNI": ev.get('dni'),
                 "Cargo": ev.get('cargo'),
-                "Delegación": ev.get('delegacion'),
+                "Fecha que rindió el Examen": ev.get('delegacion'), # <-- Lo renombramos para el Excel
                 "Nota Final (0-20)": ev.get('nota_final'),
                 "Evidencia (Foto)": ev.get('evidencia_url', 'Sin evidencia')
             })
