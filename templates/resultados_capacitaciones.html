@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Resultados de Capacitaciones - SIMECAR</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #005eb8; padding-bottom: 10px; }
+        h1 { color: #005eb8; margin: 0; font-size: 1.8rem; }
+        .btn-excel { background: #2f855a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; transition: 0.2s; }
+        .btn-excel:hover { background: #22543d; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #005eb8; color: white; padding: 12px; text-align: left; font-size: 0.9rem; text-transform: uppercase; }
+        td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 0.95rem; }
+        tr:hover { background-color: #ebf8ff; }
+        
+        .nota-alta { color: #2f855a; font-weight: bold; font-size: 1.1rem; }
+        .nota-media { color: #dd6b20; font-weight: bold; font-size: 1.1rem; }
+        .nota-baja { color: #e53e3e; font-weight: bold; font-size: 1.1rem; }
+        .link-foto { color: #3182ce; text-decoration: none; font-weight: bold; }
+        .link-foto:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-flex">
+            <h1>📊 Historial de Notas y Asistencias SST</h1>
+            <div>
+                <a href="/admin/capacitacion/nueva" class="btn-excel" style="background: #2b6cb0; margin-right: 10px;">➕ Nueva Charla</a>
+                <a href="/admin/capacitacion/exportar" class="btn-excel">📥 Descargar Excel</a>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Trabajador</th>
+                    <th>DNI</th>
+                    <th>Cargo / Delegación</th>
+                    <th>Tema de Capacitación</th>
+                    <th>Nota</th>
+                    <th>Evidencia</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ev in evaluaciones %}
+                <tr>
+                    <td style="font-weight: bold;">{{ ev.nombres }}</td>
+                    <td>{{ ev.dni }}</td>
+                    <td>{{ ev.cargo }} <br> <span style="font-size: 0.8rem; color: #718096;">{{ ev.delegacion }}</span></td>
+                    <td>{{ ev.nombre_charla }}</td>
+                    <td>
+                        {% if ev.nota_final >= 15 %}
+                            <span class="nota-alta">{{ ev.nota_final }} / 20</span>
+                        {% elif ev.nota_final >= 10 %}
+                            <span class="nota-media">{{ ev.nota_final }} / 20</span>
+                        {% else %}
+                            <span class="nota-baja">{{ ev.nota_final }} / 20</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if ev.evidencia_url %}
+                            <a href="{{ ev.evidencia_url }}" target="_blank" class="link-foto">📷 Ver Foto</a>
+                        {% else %}
+                            <span style="color: #a0aec0;">Sin foto</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #718096; padding: 30px;">Aún no hay exámenes registrados.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
