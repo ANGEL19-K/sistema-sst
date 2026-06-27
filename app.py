@@ -8,6 +8,7 @@ import threading
 from flask import Flask, render_template, request, redirect, url_for, send_file
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
 # 1. Cargar Credenciales
 load_dotenv()
@@ -443,6 +444,21 @@ def resultados_capacitaciones():
             ev['nombre_charla'] = datos_charla['tema']
             ev['fecha_charla'] = datos_charla['fecha']
             
+            # --- MAGIA DEL TIEMPO: Capturar hora real de envío y ajustar a Perú ---
+            fecha_utc_str = ev.get('created_at')
+            if fecha_utc_str:
+                try:
+                    # Limpiamos el texto que manda Supabase (Ej: 2026-06-27T15:30:00.12345+00:00)
+                    fecha_limpia = fecha_utc_str.split('.')[0].replace('T', ' ')
+                    fecha_obj = datetime.strptime(fecha_limpia, '%Y-%m-%d %H:%M:%S')
+                    # Ajustamos la hora al horario local (-5 horas)
+                    fecha_local = fecha_obj - timedelta(hours=5)
+                    ev['fecha_real_envio'] = fecha_local.strftime('%d/%m/%Y %I:%M %p')
+                except:
+                    ev['fecha_real_envio'] = "Desconocida"
+            else:
+                ev['fecha_real_envio'] = "Desconocida"
+            
         return render_template('resultados_capacitaciones.html', evaluaciones=evaluaciones)
     except Exception as e:
         return f"Error al cargar los resultados: {str(e)}"
@@ -459,14 +475,28 @@ def exportar_notas_excel():
         datos_excel = []
         for ev in res_evaluaciones.data:
             datos_charla = mapa_charlas.get(ev.get('id_charla'), {'tema': 'Desconocida', 'fecha': 'N/A'})
+            
+            # Capturar hora real para el Excel
+            fecha_utc_str = ev.get('created_at')
+            hora_real = "Desconocida"
+            if fecha_utc_str:
+                try:
+                    fecha_limpia = fecha_utc_str.split('.')[0].replace('T', ' ')
+                    fecha_obj = datetime.strptime(fecha_limpia, '%Y-%m-%d %H:%M:%S')
+                    fecha_local = fecha_obj - timedelta(hours=5)
+                    hora_real = fecha_local.strftime('%d/%m/%Y %I:%M %p')
+                except:
+                    pass
+
             datos_excel.append({
-                "Fecha": datos_charla['fecha'],
+                "Fecha Programada": datos_charla['fecha'],
                 "Tema de Capacitación": datos_charla['tema'],
                 "Trabajador": ev.get('nombres'),
                 "DNI": ev.get('dni'),
                 "Cargo": ev.get('cargo'),
                 "Delegación": ev.get('delegacion'),
                 "Nota Final (0-20)": ev.get('nota_final'),
+                "Momento exacto del Examen": hora_real,  # <-- Se agrega la nueva columna al Excel
                 "Evidencia (Foto)": ev.get('evidencia_url', 'Sin evidencia')
             })
 
