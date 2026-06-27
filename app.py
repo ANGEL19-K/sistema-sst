@@ -5,10 +5,10 @@ import werkzeug
 import requests
 import pandas as pd
 import threading
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, send_file
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
 
 # 1. Cargar Credenciales
 load_dotenv()
@@ -367,7 +367,7 @@ def nueva_capacitacion():
             <p>Los trabajadores deben ingresar a este link desde sus celulares para registrar asistencia y dar el examen:</p>
             <a href='{url_examen}' style='font-size: 1.2rem; font-weight: bold; color: #005eb8;'>{url_examen}</a>
             <br><br>
-            <button onclick="window.location.href='/admin/dashboard'" style='padding: 10px 20px; cursor: pointer;'>Volver al Panel</button>
+            <button onclick="window.location.href='/admin/capacitacion/resultados'" style='padding: 10px 20px; cursor: pointer;'>Ver Notas y Resultados</button>
         </div>
         """
         
@@ -444,20 +444,20 @@ def resultados_capacitaciones():
             ev['nombre_charla'] = datos_charla['tema']
             ev['fecha_charla'] = datos_charla['fecha']
             
-            # --- MAGIA DEL TIEMPO: Capturar hora real de envío y ajustar a Perú ---
+            # --- MAGIA DEL TIEMPO (VERSIÓN BLINDADA) ---
             fecha_utc_str = ev.get('created_at')
             if fecha_utc_str:
                 try:
-                    # Limpiamos el texto que manda Supabase (Ej: 2026-06-27T15:30:00.12345+00:00)
-                    fecha_limpia = fecha_utc_str.split('.')[0].replace('T', ' ')
+                    # Limpiamos TODO formato extra que marea a Python (+00:00, Z, milisegundos)
+                    fecha_limpia = fecha_utc_str.split('+')[0].split('Z')[0].split('.')[0].replace('T', ' ')
                     fecha_obj = datetime.strptime(fecha_limpia, '%Y-%m-%d %H:%M:%S')
-                    # Ajustamos la hora al horario local (-5 horas)
-                    fecha_local = fecha_obj - timedelta(hours=5)
+                    fecha_local = fecha_obj - timedelta(hours=5) # Ajuste a hora de Perú
                     ev['fecha_real_envio'] = fecha_local.strftime('%d/%m/%Y %I:%M %p')
-                except:
-                    ev['fecha_real_envio'] = "Desconocida"
+                except Exception as e:
+                    # Si algo falla de todas formas, muestra la fecha cruda
+                    ev['fecha_real_envio'] = str(fecha_utc_str)[:16].replace('T', ' ')
             else:
-                ev['fecha_real_envio'] = "Desconocida"
+                ev['fecha_real_envio'] = "Sin Columna en BD"
             
         return render_template('resultados_capacitaciones.html', evaluaciones=evaluaciones)
     except Exception as e:
@@ -476,17 +476,17 @@ def exportar_notas_excel():
         for ev in res_evaluaciones.data:
             datos_charla = mapa_charlas.get(ev.get('id_charla'), {'tema': 'Desconocida', 'fecha': 'N/A'})
             
-            # Capturar hora real para el Excel
+            # Capturar hora real para el Excel (Versión Blindada)
             fecha_utc_str = ev.get('created_at')
             hora_real = "Desconocida"
             if fecha_utc_str:
                 try:
-                    fecha_limpia = fecha_utc_str.split('.')[0].replace('T', ' ')
+                    fecha_limpia = fecha_utc_str.split('+')[0].split('Z')[0].split('.')[0].replace('T', ' ')
                     fecha_obj = datetime.strptime(fecha_limpia, '%Y-%m-%d %H:%M:%S')
                     fecha_local = fecha_obj - timedelta(hours=5)
                     hora_real = fecha_local.strftime('%d/%m/%Y %I:%M %p')
                 except:
-                    pass
+                    hora_real = str(fecha_utc_str)[:16].replace('T', ' ')
 
             datos_excel.append({
                 "Fecha Programada": datos_charla['fecha'],
@@ -496,7 +496,7 @@ def exportar_notas_excel():
                 "Cargo": ev.get('cargo'),
                 "Delegación": ev.get('delegacion'),
                 "Nota Final (0-20)": ev.get('nota_final'),
-                "Momento exacto del Examen": hora_real,  # <-- Se agrega la nueva columna al Excel
+                "Momento exacto del Examen": hora_real,
                 "Evidencia (Foto)": ev.get('evidencia_url', 'Sin evidencia')
             })
 
