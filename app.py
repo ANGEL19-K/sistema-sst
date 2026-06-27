@@ -4,9 +4,11 @@ import werkzeug
 import requests
 import pandas as pd
 import threading
+import json
 from flask import Flask, render_template, request, redirect, url_for, send_file
 from supabase import create_client, Client
 from dotenv import load_dotenv
+
 
 # 1. Cargar Credenciales
 load_dotenv()
@@ -316,5 +318,128 @@ def exportar_excel():
     except Exception as e:
         return f"Error al exportar a Excel: {str(e)}"
 
+# =======================================================
+# --- MÓDULO DE CAPACITACIONES Y EXÁMENES (SIMECAR) ---
+# =======================================================
+import json
+
+@app.route('/admin/capacitacion/nueva', methods=['GET', 'POST'])
+def nueva_capacitacion():
+    """Pantalla donde el Administrador crea la charla y las 4 preguntas"""
+    if request.method == 'POST':
+        # Datos del formulario
+        tema = request.form.get('tema')
+        tipo = request.form.get('tipo')
+        lugar = request.form.get('lugar')
+        fecha = request.form.get('fecha')
+        hora_inicio = request.form.get('hora_inicio')
+        hora_termino = request.form.get('hora_termino')
+        delegacion = request.form.get('delegacion_general')
+        
+        # Recibir y empaquetar las 4 preguntas en JSON
+        preguntas = []
+        for i in range(1, 5):
+            pregunta = {
+                "texto": request.form.get(f'q{i}_texto'),
+                "opciones": {
+                    "A": request.form.get(f'q{i}_a'),
+                    "B": request.form.get(f'q{i}_b'),
+                    "C": request.form.get(f'q{i}_c'),
+                    "D": request.form.get(f'q{i}_d')
+                },
+                "correcta": request.form.get(f'q{i}_correcta')
+            }
+            preguntas.append(pregunta)
+        
+        nueva_charla = {
+            "tema": tema,
+            "tipo": tipo,
+            "lugar": lugar,
+            "fecha": fecha,
+            "hora_inicio": hora_inicio,
+            "hora_termino": hora_termino,
+            "delegacion_general": delegacion,
+            "datos_preguntas": json.dumps(preguntas),
+            "estado": "ACTIVA"
+        }
+        
+        # Guardar en Supabase
+        respuesta = supabase.table('charlas_programadas').insert(nueva_charla).execute()
+        id_charla = respuesta.data[0]['id']
+        
+        # Link mágico para los trabajadores
+        url_examen = f"{request.host_url}capacitacion/{id_charla}"
+        return f"""
+        <div style='font-family: Arial; padding: 40px; text-align: center;'>
+            <h1 style='color: #2f855a;'>¡Charla y Examen Creados con Éxito! ✅</h1>
+            <p>Los trabajadores deben ingresar a este link desde sus celulares para registrar asistencia y dar el examen:</p>
+            <a href='{url_examen}' style='font-size: 1.2rem; font-weight: bold; color: #005eb8;'>{url_examen}</a>
+            <br><br>
+            <button onclick="window.location.href='/admin/dashboard'" style='padding: 10px 20px; cursor: pointer;'>Volver al Panel</button>
+        </div>
+        """
+        
+    return render_template('crear_charla.html')
+
+
+@app.route('/capacitacion/<int:id_charla>', methods=['GET', 'POST'])
+def rendir_evaluacion(id_charla):
+    """Pantalla donde el Trabajador entra desde su celular a dar el examen"""
+    # 1. Buscar la charla en la base de datos
+    charla_res = supabase.table('charlas_programadas').select('*').eq('id', id_charla).execute()
+    if not charla_res.data:
+        return "<h1 style='text-align:center; color:red; margin-top:50px;'>Error: La capacitación no existe o ya fue cerrada.</h1>"
+    
+    charla = charla_res.data[0]
+    preguntas = json.loads(charla['datos_preguntas'])
+    
+    if request.method == 'POST':
+        # Datos del trabajador
+        nombres = request.form.get('nombres')
+        dni = request.form.get('dni')
+        cargo = request.form.get('cargo')
+        delegacion = request.form.get('delegacion')
+        archivo_foto = request.files.get('evidencia')
+        
+        url_evidencia = subir_foto_a_supabase(archivo_foto, "SIMECAR", f"ASISTENCIA_{id_charla}") if archivo_foto else None
+        
+        # LA MAGIA: Calificar el examen en milisegundos (5 puntos c/u)
+        nota = 0
+        respuestas_marcadas = {}
+        
+        for i in range(1, 5):
+            respuesta_usuario = request.form.get(f'resp_q{i}') 
+            respuestas_marcadas[f'q{i}'] = respuesta_usuario
+            
+            # Si lo que marcó es igual a la correcta que guardó el Admin... ¡+5 Puntos!
+            if respuesta_usuario == preguntas[i-1]['correcta']:
+                nota += 5
+        
+        nuevo_examen = {
+            "id_charla": id_charla,
+            "nombres": nombres.upper(),
+            "dni": dni,
+            "cargo": cargo.upper(),
+            "delegacion": delegacion.upper(),
+            "respuestas_marcadas": json.dumps(respuestas_marcadas),
+            "nota_final": nota,
+            "evidencia_url": url_evidencia
+        }
+        
+        supabase.table('evaluaciones_trabajadores').insert(nuevo_examen).execute()
+        
+        color_nota = "#2f855a" if nota >= 15 else ("#dd6b20" if nota == 10 else "#e53e3e")
+        mensaje = "¡Aprobado con honores! 🏆" if nota == 20 else ("Aprobado ✅" if nota >= 15 else "Necesitas repasar el tema ⚠️")
+
+        return f"""
+        <div style='font-family: Arial; padding: 40px; text-align: center;'>
+            <h1 style='color: #005eb8;'>¡Asistencia y Examen Registrados!</h1>
+            <h2 style='font-size: 3rem; color: {color_nota}; margin: 10px 0;'>Nota: {nota}/20</h2>
+            <h3>{mensaje}</h3>
+            <p>Ya puedes cerrar esta ventana.</p>
+        </div>
+        """
+        
+    return render_template('rendir_evaluacion.html', charla=charla, preguntas=preguntas)
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
