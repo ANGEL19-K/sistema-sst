@@ -61,7 +61,7 @@
 <body>
     <div class="container">
         <div class="header-flex">
-            <h1>📊 Historial de Notas y Asistencias SST</h1>
+            <h1>Historial de Notas y Asistencias SST</h1>
             <div class="btn-group">
                 <a href="/admin/capacitacion/nueva" class="btn-accion btn-nueva">➕ Nueva Charla</a>
                 <a href="/admin/capacitacion/exportar" class="btn-accion btn-excel">📥 Descargar Excel</a>
@@ -76,7 +76,8 @@
                         <th>DNI</th>
                         <th>Cargo / Delegación</th>
                         <th>Tema de Capacitación</th>
-                        <th>Fecha</th>
+                        <th>Fecha Programada</th>
+                        <th>Envío Real</th> 
                         <th>Nota</th>
                         <th>Evidencia</th>
                     </tr>
@@ -93,6 +94,9 @@
                         <td style="font-weight: 500; color: #2c5282;">{{ ev.nombre_charla }}</td>
                         <td>
                             <span class="badge-fecha">📅 {{ ev.fecha_charla }}</span>
+                        </td>
+                        <td> 
+                            <span style="font-size: 0.85rem; color: #4a5568; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-weight: bold;"> 🕒 {{ ev.fecha_real_envio }}</span>
                         </td>
                         <td>
                             {% if ev.nota_final >= 15 %}
