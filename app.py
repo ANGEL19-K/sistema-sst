@@ -441,5 +441,61 @@ def rendir_evaluacion(id_charla):
         """
         
     return render_template('rendir_evaluacion.html', charla=charla, preguntas=preguntas)
+@app.route('/admin/capacitacion/resultados')
+def resultados_capacitaciones():
+    """Panel para ver las notas de todos los trabajadores"""
+    try:
+        # 1. Traemos las charlas para saber el título
+        res_charlas = supabase.table('charlas_programadas').select('id, tema, fecha').execute()
+        mapa_charlas = {c['id']: f"{c['tema']} ({c['fecha']})" for c in res_charlas.data}
+
+        # 2. Traemos todos los exámenes
+        res_evaluaciones = supabase.table('evaluaciones_trabajadores').select('*').order('id', desc=True).execute()
+        evaluaciones = res_evaluaciones.data
+
+        # 3. Le pegamos el nombre de la charla a cada examen
+        for ev in evaluaciones:
+            ev['nombre_charla'] = mapa_charlas.get(ev.get('id_charla'), 'Charla Desconocida')
+            
+        return render_template('resultados_capacitaciones.html', evaluaciones=evaluaciones)
+    except Exception as e:
+        return f"Error al cargar los resultados: {str(e)}"
+
+@app.route('/admin/capacitacion/exportar')
+def exportar_notas_excel():
+    """Descarga las notas en un archivo de Excel"""
+    try:
+        res_charlas = supabase.table('charlas_programadas').select('id, tema, fecha').execute()
+        mapa_charlas = {c['id']: f"{c['tema']} ({c['fecha']})" for c in res_charlas.data}
+        
+        res_evaluaciones = supabase.table('evaluaciones_trabajadores').select('*').order('id', desc=True).execute()
+        
+        datos_excel = []
+        for ev in res_evaluaciones.data:
+            datos_excel.append({
+                "Capacitación / Tema": mapa_charlas.get(ev.get('id_charla'), 'Desconocida'),
+                "Trabajador": ev.get('nombres'),
+                "DNI": ev.get('dni'),
+                "Cargo": ev.get('cargo'),
+                "Delegación": ev.get('delegacion'),
+                "Nota Final (0-20)": ev.get('nota_final'),
+                "Evidencia (Foto)": ev.get('evidencia_url', 'Sin evidencia')
+            })
+
+        df = pd.DataFrame(datos_excel)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Notas Capacitaciones')
+        
+        output.seek(0)
+        
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="Registro_Notas_SST_SIMECAR.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        return f"Error al exportar a Excel: {str(e)}"
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
