@@ -1,14 +1,13 @@
 import os
 import io
+import json
 import werkzeug
 import requests
 import pandas as pd
 import threading
-import json
 from flask import Flask, render_template, request, redirect, url_for, send_file
 from supabase import create_client, Client
 from dotenv import load_dotenv
-
 
 # 1. Cargar Credenciales
 load_dotenv()
@@ -21,17 +20,18 @@ supabase: Client = create_client(url, key)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-# Nuevas variables para la API de Google
+# Usamos la API de Google para correos (Evita el bloqueo de Render)
 GOOGLE_SCRIPT_URL = os.environ.get("GOOGLE_SCRIPT_URL")
 EMAIL_DESTINO = os.environ.get("EMAIL_DESTINO")
 
 BUCKET_FOTOS = "evidencias"
 
+# =======================================================
 # --- MÓDULO DE ALERTAS (TELEGRAM Y CORREO) ---
+# =======================================================
 
 def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        print("[-] TELEGRAM: Saltado por falta de credenciales.")
         return 
         
     mensaje = f"🚨 NUEVO REPORTE SST 🚨\n\n"
@@ -50,15 +50,11 @@ def enviar_alerta_telegram(empresa, tipo_reporte, nombre, nombre_reportado, team
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": mensaje}
     try:
         requests.post(url_api, json=payload)
-        print("[+] TELEGRAM: Alerta enviada con éxito.")
     except Exception as e:
-        print(f"[-] TELEGRAM ERROR: {e}")
+        print(f"[-] Error conectando con Telegram: {e}")
 
 def enviar_correo_background(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
-    print("[*] CORREO: Iniciando envío por túnel HTTPS (Google Apps Script).")
-    
     if not GOOGLE_SCRIPT_URL or not EMAIL_DESTINO:
-        print("[-] CORREO ABORTADO: Faltan variables GOOGLE_SCRIPT_URL o EMAIL_DESTINO en Render.")
         return
 
     asunto = f"🚨 NUEVO REPORTE SST: {empresa} - {tipo_reporte}"
@@ -79,7 +75,6 @@ def enviar_correo_background(empresa, tipo_reporte, nombre, nombre_reportado, te
 ---
 Este es un mensaje automático del Sistema SST."""
 
-    # Empaquetamos los datos para enviarlos por la red normal
     payload = {
         "destino": EMAIL_DESTINO,
         "asunto": asunto,
@@ -87,21 +82,20 @@ Este es un mensaje automático del Sistema SST."""
     }
 
     try:
-        print("[*] CORREO: Enviando señal a Google...")
-        respuesta = requests.post(GOOGLE_SCRIPT_URL, json=payload, timeout=10)
-        print(f"[+] CORREO: ¡Respuesta de Google exitosa!: {respuesta.text}")
+        requests.post(GOOGLE_SCRIPT_URL, json=payload, timeout=10)
     except Exception as e:
-        print(f"[-] CORREO ERROR CRÍTICO AL CONECTAR CON GOOGLE: {e}")
+        print(f"[-] Error enviando el correo por Google: {e}")
 
 def enviar_alerta_correo(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url):
-    print("[*] CORREO: Disparando hilo en segundo plano...")
     hilo = threading.Thread(
         target=enviar_correo_background, 
         args=(empresa, tipo_reporte, nombre, nombre_reportado, team, descripcion, foto_url)
     )
     hilo.start()
 
+# =======================================================
 # --- MÓDULO DE FOTOS ---
+# =======================================================
 
 def subir_foto_a_supabase(archivo_foto, empresa, tipo_reporte):
     try:
@@ -120,7 +114,9 @@ def subir_foto_a_supabase(archivo_foto, empresa, tipo_reporte):
         print(f"[-] Error: {str(e)}")
         return None
 
-# --- RUTAS PÚBLICAS (FORMULARIOS) ---
+# =======================================================
+# --- RUTAS PÚBLICAS (FORMULARIOS SST) ---
+# =======================================================
 
 @app.route('/')
 def inicio():
@@ -182,12 +178,10 @@ def procesar_reporte(empresa, req):
         }
         
         supabase.table('reportes').insert(nuevo_reporte).execute()
-        print("[+] BASE DE DATOS: Reporte guardado.")
         
         tipo_alerta = "ACTO INSEGURO" if tipo_form == 'ACTO' else "CONDICION INSEGURA"
         nombre_alerta = "Anónimo 🕵️" if es_anonimo else nombre_reportante
         
-        # Doble disparo de notificaciones
         enviar_alerta_telegram(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
         enviar_alerta_correo(empresa, tipo_alerta, nombre_alerta, nombre_reportado, team, descripcion, url_evidencia)
 
@@ -195,7 +189,9 @@ def procesar_reporte(empresa, req):
     except Exception as e:
         return f"Hubo un error: {str(e)}", 500
 
-# --- RUTAS PRIVADAS (DASHBOARD Y GESTIÓN) ---
+# =======================================================
+# --- RUTAS PRIVADAS (DASHBOARD Y GESTIÓN SST) ---
+# =======================================================
 
 @app.route('/admin/dashboard')
 def dashboard():
@@ -321,13 +317,11 @@ def exportar_excel():
 # =======================================================
 # --- MÓDULO DE CAPACITACIONES Y EXÁMENES (SIMECAR) ---
 # =======================================================
-import json
 
 @app.route('/admin/capacitacion/nueva', methods=['GET', 'POST'])
 def nueva_capacitacion():
     """Pantalla donde el Administrador crea la charla y las 4 preguntas"""
     if request.method == 'POST':
-        # Datos del formulario
         tema = request.form.get('tema')
         tipo = request.form.get('tipo')
         lugar = request.form.get('lugar')
@@ -336,7 +330,6 @@ def nueva_capacitacion():
         hora_termino = request.form.get('hora_termino')
         delegacion = request.form.get('delegacion_general')
         
-        # Recibir y empaquetar las 4 preguntas en JSON
         preguntas = []
         for i in range(1, 5):
             pregunta = {
@@ -363,11 +356,9 @@ def nueva_capacitacion():
             "estado": "ACTIVA"
         }
         
-        # Guardar en Supabase
         respuesta = supabase.table('charlas_programadas').insert(nueva_charla).execute()
         id_charla = respuesta.data[0]['id']
         
-        # Link mágico para los trabajadores
         url_examen = f"{request.host_url}capacitacion/{id_charla}"
         return f"""
         <div style='font-family: Arial; padding: 40px; text-align: center;'>
@@ -381,11 +372,9 @@ def nueva_capacitacion():
         
     return render_template('crear_charla.html')
 
-
 @app.route('/capacitacion/<int:id_charla>', methods=['GET', 'POST'])
 def rendir_evaluacion(id_charla):
     """Pantalla donde el Trabajador entra desde su celular a dar el examen"""
-    # 1. Buscar la charla en la base de datos
     charla_res = supabase.table('charlas_programadas').select('*').eq('id', id_charla).execute()
     if not charla_res.data:
         return "<h1 style='text-align:center; color:red; margin-top:50px;'>Error: La capacitación no existe o ya fue cerrada.</h1>"
@@ -394,7 +383,6 @@ def rendir_evaluacion(id_charla):
     preguntas = json.loads(charla['datos_preguntas'])
     
     if request.method == 'POST':
-        # Datos del trabajador
         nombres = request.form.get('nombres')
         dni = request.form.get('dni')
         cargo = request.form.get('cargo')
@@ -403,7 +391,6 @@ def rendir_evaluacion(id_charla):
         
         url_evidencia = subir_foto_a_supabase(archivo_foto, "SIMECAR", f"ASISTENCIA_{id_charla}") if archivo_foto else None
         
-        # LA MAGIA: Calificar el examen en milisegundos (5 puntos c/u)
         nota = 0
         respuestas_marcadas = {}
         
@@ -411,7 +398,6 @@ def rendir_evaluacion(id_charla):
             respuesta_usuario = request.form.get(f'resp_q{i}') 
             respuestas_marcadas[f'q{i}'] = respuesta_usuario
             
-            # Si lo que marcó es igual a la correcta que guardó el Admin... ¡+5 Puntos!
             if respuesta_usuario == preguntas[i-1]['correcta']:
                 nota += 5
         
@@ -441,21 +427,21 @@ def rendir_evaluacion(id_charla):
         """
         
     return render_template('rendir_evaluacion.html', charla=charla, preguntas=preguntas)
+
 @app.route('/admin/capacitacion/resultados')
 def resultados_capacitaciones():
     """Panel para ver las notas de todos los trabajadores"""
     try:
-        # 1. Traemos las charlas para saber el título
         res_charlas = supabase.table('charlas_programadas').select('id, tema, fecha').execute()
-        mapa_charlas = {c['id']: f"{c['tema']} ({c['fecha']})" for c in res_charlas.data}
+        mapa_charlas = {c['id']: {'tema': c['tema'], 'fecha': c['fecha']} for c in res_charlas.data}
 
-        # 2. Traemos todos los exámenes
         res_evaluaciones = supabase.table('evaluaciones_trabajadores').select('*').order('id', desc=True).execute()
         evaluaciones = res_evaluaciones.data
 
-        # 3. Le pegamos el nombre de la charla a cada examen
         for ev in evaluaciones:
-            ev['nombre_charla'] = mapa_charlas.get(ev.get('id_charla'), 'Charla Desconocida')
+            datos_charla = mapa_charlas.get(ev.get('id_charla'), {'tema': 'Charla Desconocida', 'fecha': 'N/A'})
+            ev['nombre_charla'] = datos_charla['tema']
+            ev['fecha_charla'] = datos_charla['fecha']
             
         return render_template('resultados_capacitaciones.html', evaluaciones=evaluaciones)
     except Exception as e:
@@ -466,14 +452,16 @@ def exportar_notas_excel():
     """Descarga las notas en un archivo de Excel"""
     try:
         res_charlas = supabase.table('charlas_programadas').select('id, tema, fecha').execute()
-        mapa_charlas = {c['id']: f"{c['tema']} ({c['fecha']})" for c in res_charlas.data}
+        mapa_charlas = {c['id']: {'tema': c['tema'], 'fecha': c['fecha']} for c in res_charlas.data}
         
         res_evaluaciones = supabase.table('evaluaciones_trabajadores').select('*').order('id', desc=True).execute()
         
         datos_excel = []
         for ev in res_evaluaciones.data:
+            datos_charla = mapa_charlas.get(ev.get('id_charla'), {'tema': 'Desconocida', 'fecha': 'N/A'})
             datos_excel.append({
-                "Capacitación / Tema": mapa_charlas.get(ev.get('id_charla'), 'Desconocida'),
+                "Fecha": datos_charla['fecha'],
+                "Tema de Capacitación": datos_charla['tema'],
                 "Trabajador": ev.get('nombres'),
                 "DNI": ev.get('dni'),
                 "Cargo": ev.get('cargo'),
@@ -497,5 +485,6 @@ def exportar_notas_excel():
         )
     except Exception as e:
         return f"Error al exportar a Excel: {str(e)}"
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
