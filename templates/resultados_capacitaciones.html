@@ -76,7 +76,6 @@
                         <th>DNI</th>
                         <th>Cargo / Fecha Examen</th>
                         <th>Tema de Capacitación</th>
-                        <th>Fecha Programada</th>
                         <th>Nota</th>
                         <th>Evidencia</th>
                     </tr>
@@ -91,9 +90,6 @@
                            <span class="text-muted">📅 Rindió: {{ ev.delegacion }}</span>
                        </td>
                         <td style="font-weight: 500; color: #2c5282;">{{ ev.nombre_charla }}</td>
-                        <td>
-                            <span class="badge-fecha">📅 {{ ev.fecha_charla }}</span>
-                        </td>
                         <td>
                             {% if ev.nota_final >= 15 %}
                                 <span class="nota-alta">{{ ev.nota_final }} / 20</span>
