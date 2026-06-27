@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examen SST - SIMECAR</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #edf2f7; margin: 0; padding: 15px; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background: #005eb8; color: white; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 20px; }
+        h3 { margin: 0; font-size: 1.2rem; }
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9rem; }
+        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 4px; box-sizing: border-box; }
+        
+        .pregunta-card { background: #f7fafc; border-left: 4px solid #3182ce; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+        .pregunta-texto { font-weight: bold; margin-bottom: 12px; font-size: 1rem; color: #2d3748; }
+        .opcion-label { display: block; padding: 10px; background: white; border: 1px solid #e2e8f0; border-radius: 4px; margin-bottom: 8px; cursor: pointer; }
+        .opcion-label:hover { background: #ebf8ff; }
+        
+        .btn-enviar { background: #2f855a; color: white; width: 100%; padding: 15px; border: none; font-size: 1.1rem; font-weight: bold; border-radius: 6px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h3>{{ charla.tipo }}</h3>
+            <p style="margin: 5px 0 0 0;">{{ charla.tema }}</p>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+            <h4 style="border-bottom: 2px solid #ccc; padding-bottom: 5px;">👤 Tus Datos</h4>
+            <div class="form-group"><label>Nombres y Apellidos:</label><input type="text" name="nombres" required></div>
+            <div class="form-group"><label>DNI:</label><input type="text" name="dni" required pattern="[0-9]{8}"></div>
+            <div class="form-group"><label>Cargo:</label><input type="text" name="cargo" required></div>
+            <div class="form-group"><label>Delegación:</label><input type="text" name="delegacion" required></div>
+
+            <h4 style="border-bottom: 2px solid #ccc; padding-bottom: 5px; margin-top: 30px;">📝 Evaluación (5 ptos c/u)</h4>
+            
+            {% for i in range(4) %}
+            <div class="pregunta-card">
+                <div class="pregunta-texto">{{ i+1 }}. {{ preguntas[i].texto }}</div>
+                
+                <label class="opcion-label">
+                    <input type="radio" name="resp_q{{ i+1 }}" value="A" required> <strong>A)</strong> {{ preguntas[i].opciones.A }}
+                </label>
+                <label class="opcion-label">
+                    <input type="radio" name="resp_q{{ i+1 }}" value="B"> <strong>B)</strong> {{ preguntas[i].opciones.B }}
+                </label>
+                <label class="opcion-label">
+                    <input type="radio" name="resp_q{{ i+1 }}" value="C"> <strong>C)</strong> {{ preguntas[i].opciones.C }}
+                </label>
+                <label class="opcion-label">
+                    <input type="radio" name="resp_q{{ i+1 }}" value="D"> <strong>D)</strong> {{ preguntas[i].opciones.D }}
+                </label>
+            </div>
+            {% endfor %}
+
+            <h4 style="border-bottom: 2px solid #ccc; padding-bottom: 5px;">📷 Evidencia</h4>
+            <div class="form-group">
+                <label>Sube una selfie tuya en la capacitación (Obligatorio):</label>
+                <input type="file" name="evidencia" accept="image/*" required style="width: 100%;">
+            </div>
+
+            <button type="submit" class="btn-enviar">ENVIAR EXAMEN Y ASISTENCIA</button>
+        </form>
+    </div>
+</body>
+</html>

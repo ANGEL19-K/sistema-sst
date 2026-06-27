@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Programar Charla y Examen - SIMECAR</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6f9; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { color: #005eb8; border-bottom: 2px solid #005eb8; padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .pregunta-box { background: #ebf8ff; border: 1px solid #90cdf4; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+        .btn-submit { background: #2f855a; color: white; width: 100%; padding: 15px; font-size: 1.1rem; border: none; font-weight: bold; cursor: pointer; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🛠️ 1. Datos de la Capacitación</h2>
+        <form method="POST">
+            <div class="form-group"><label>Tema:</label><input type="text" name="tema" required></div>
+            <div style="display:flex; gap:10px;">
+                <div class="form-group" style="flex:1;"><label>Tipo:</label>
+                    <select name="tipo">
+                        <option value="Inducción">Inducción</option>
+                        <option value="Capacitación">Capacitación</option>
+                        <option value="Charla de 5 min">Charla de 5 min</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1;"><label>Lugar:</label><input type="text" name="lugar" required></div>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <div class="form-group" style="flex:1;"><label>Fecha:</label><input type="date" name="fecha" required></div>
+                <div class="form-group" style="flex:1;"><label>Hora Inicio:</label><input type="time" name="hora_inicio" required></div>
+                <div class="form-group" style="flex:1;"><label>Hora Fin:</label><input type="time" name="hora_termino" required></div>
+            </div>
+            <div class="form-group"><label>Delegación / Área General:</label><input type="text" name="delegacion_general" required></div>
+
+            <h2>🧠 2. Banco de Preguntas (Evaluación)</h2>
+            <p>Cada pregunta valdrá 5 puntos. Digita las opciones y marca cuál es la correcta.</p>
+            
+            <!-- Generamos 4 bloques iguales para las preguntas -->
+            <script>
+                for(let i=1; i<=4; i++) {
+                    document.write(`
+                        <div class="pregunta-box">
+                            <label>Pregunta N°${i}:</label>
+                            <input type="text" name="q${i}_texto" placeholder="Ej: ¿Qué significa EPP?" required style="margin-bottom:10px;">
+                            <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                                <div style="flex:48%;"><input type="text" name="q${i}_a" placeholder="Opción A" required></div>
+                                <div style="flex:48%;"><input type="text" name="q${i}_b" placeholder="Opción B" required></div>
+                                <div style="flex:48%;"><input type="text" name="q${i}_c" placeholder="Opción C" required></div>
+                                <div style="flex:48%;"><input type="text" name="q${i}_d" placeholder="Opción D" required></div>
+                            </div>
+                            <br>
+                            <label style="color:#2b6cb0;">¿Cuál es la respuesta correcta?</label>
+                            <select name="q${i}_correcta" style="background:#fff; border: 2px solid #2b6cb0;" required>
+                                <option value="A">Opción A</option>
+                                <option value="B">Opción B</option>
+                                <option value="C">Opción C</option>
+                                <option value="D">Opción D</option>
+                            </select>
+                        </div>
+                    `);
+                }
+            </script>
+
+            <button type="submit" class="btn-submit">Generar Link de Asistencia y Examen</button>
+        </form>
+    </div>
+</body>
+</html>
